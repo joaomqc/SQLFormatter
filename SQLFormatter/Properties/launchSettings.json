@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SQLFormatter": {
+      "commandName": "Project",
+      "commandLineArgs": "-i original.sql -o formatted.sql"
+    }
+  }
+}
