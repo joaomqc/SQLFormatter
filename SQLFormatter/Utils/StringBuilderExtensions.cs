@@ -1,4 +1,4 @@
-﻿namespace SQLFormatter.Formatting
+﻿namespace SQLFormatter.Utils
 {
     using System;
     using System.Text;

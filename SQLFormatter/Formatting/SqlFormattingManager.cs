@@ -1,4 +1,4 @@
-﻿namespace SQLFormatter
+﻿namespace SQLFormatter.Formatting
 {
     using Formatting;
     using Microsoft.SqlServer.Management.SqlParser.Parser;

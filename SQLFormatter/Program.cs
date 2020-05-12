@@ -4,6 +4,7 @@
     using System.IO;
     using System.Linq;
     using Arguments;
+    using Formatting;
 
     class Program
     {

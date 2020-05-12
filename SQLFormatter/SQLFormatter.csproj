@@ -6,11 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="original.sql" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="original.sql">
+    <Content Include="../../original.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
