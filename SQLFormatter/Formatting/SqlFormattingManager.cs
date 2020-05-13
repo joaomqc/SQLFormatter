@@ -1,6 +1,5 @@
 ﻿namespace SQLFormatter.Formatting
 {
-    using Formatting;
     using Microsoft.SqlServer.Management.SqlParser.Parser;
 
     public class SqlFormattingManager

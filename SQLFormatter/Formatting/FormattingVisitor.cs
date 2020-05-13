@@ -1,9 +1,10 @@
 ﻿namespace SQLFormatter.Formatting
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
     using System.Text;
-    using System.Xml.Serialization;
+    using Microsoft.SqlServer.Management.SqlParser.Parser;
     using Microsoft.SqlServer.Management.SqlParser.SqlCodeDom;
     using Utils;
 
@@ -151,7 +152,6 @@
 
         public override void Visit(SqlVariableDeclaration codeObject)
         {
-            base.Visit(codeObject);
         }
 
         public override void Visit(SqlVariableColumnAssignment codeObject)
@@ -180,7 +180,7 @@
 
         public override void Visit(SqlSetClause codeObject)
         {
-            for (int i = 0; i < codeObject.Assignments.Count; i++)
+            for (var i = 0; i < codeObject.Assignments.Count; i++)
             {
                 if (i > 0)
                 {
@@ -204,6 +204,8 @@
 
         public override void Visit(SqlSelectStarExpression codeObject)
         {
+            codeObject.Qualifier?.Accept(this);
+
             _stringBuilder.Append("*");
         }
 
@@ -218,6 +220,13 @@
         public override void Visit(SqlSelectScalarExpression codeObject)
         {
             codeObject.Expression.Accept(this);
+
+            if (codeObject.Alias != null)
+            {
+                _stringBuilder.Append(" AS ");
+
+                codeObject.Alias.Accept(this);
+            }
         }
 
         public override void Visit(SqlSimpleCaseExpression codeObject)
@@ -242,7 +251,7 @@
                 .SelectMany(batch => batch.Statements)
                 .ToList();
 
-            for (int i = 0; i < statements.Count; i++)
+            for (var i = 0; i < statements.Count; i++)
             {
                 if (i > 0)
                 {
@@ -271,7 +280,9 @@
 
         public override void Visit(SqlScalarSubQueryExpression codeObject)
         {
-            _stringBuilder.Append("(");
+            _stringBuilder
+                .AppendIndentedLine()
+                .Append("(");
 
             using (_stringBuilder.CreateIndentationContext())
             {
@@ -301,7 +312,7 @@
             {
                 using (_stringBuilder.CreateIndentationContext())
                 {
-                    for (int i = 0; i < children.Count; i++)
+                    for (var i = 0; i < children.Count; i++)
                     {
                         if (i > 0)
                         {
@@ -532,19 +543,11 @@
                 }
             }
 
-            // TODO Handle output, from and where clauses
             if (codeObject.UpdateSpecification.OutputClause != null)
             {
-                _stringBuilder
-                    .AppendIndentedLine()
-                    .Append("OUTPUT");
+                _stringBuilder.AppendIndentedLine();
 
-                using (_stringBuilder.CreateIndentationContext())
-                {
-                    _stringBuilder.AppendIndentedLine();
-
-                    codeObject.UpdateSpecification.OutputClause.Accept(this);
-                }
+                codeObject.UpdateSpecification.OutputClause.Accept(this);
             }
 
             if (codeObject.UpdateSpecification.FromClause != null)
@@ -777,7 +780,7 @@
 
         public override void Visit(SqlDerivedTableExpression codeObject)
         {
-            _stringBuilder.Append(" (");
+            _stringBuilder.Append("(");
 
             using (_stringBuilder.CreateIndentationContext())
             {
@@ -786,7 +789,9 @@
                 codeObject.QueryExpression.Accept(this);
             }
 
-            _stringBuilder.Append(")");
+            _stringBuilder
+                .AppendIndentedLine()
+                .Append(")");
         }
 
         public override void Visit(SqlDeleteSpecification codeObject)
@@ -866,15 +871,32 @@
         {
             _stringBuilder.Append("FROM");
 
-            using (_stringBuilder.CreateIndentationContext())
+            var children = codeObject.Children.ToList();
+
+            for (var i = 0; i < children.Count; i++)
             {
-                foreach (var child in codeObject.Children)
+                if (i > 0)
                 {
-                    _stringBuilder.AppendIndentedLine();
+                    _stringBuilder.Append(",");
+                }
+
+                var child = children[i];
+
+                if (child is SqlDerivedTableExpression)
+                {
+                    _stringBuilder.AppendLine();
 
                     child.Accept(this);
                 }
+                else
+                {
+                    using (_stringBuilder.CreateIndentationContext())
+                    {
+                        _stringBuilder.AppendIndentedLine();
 
+                        child.Accept(this);
+                    }
+                }
             }
         }
 
@@ -944,7 +966,7 @@
 
             if (codeObject.Arguments != null)
             {
-                for (int i = 0; i < codeObject.Arguments.Count; i++)
+                for (var i = 0; i < codeObject.Arguments.Count; i++)
                 {
                     if (i > 0)
                     {
@@ -1139,12 +1161,14 @@
 
         public override void Visit(SqlObjectIdentifier codeObject)
         {
+            _stringBuilder.Append(codeObject.Sql);
         }
 
         public override void Visit(SqlScalarExpression codeObject)
         {
-            //TODO Handle coalesce (perhaps other problematic expressions)
-            _stringBuilder.Append(codeObject.Sql);
+            // SqlParser does not work with coalesce
+            // Must parse token list
+            ParseTokens(codeObject.Tokens);
         }
 
         public override void Visit(SqlQueryExpression codeObject)
@@ -1181,6 +1205,7 @@
 
         public override void Visit(SqlOrderByItem codeObject)
         {
+            codeObject.Expression.Accept(this);
         }
 
         public override void Visit(SqlRowConstructorExpression codeObject)
@@ -1199,7 +1224,7 @@
         {
             var children = codeObject.Children.ToList();
 
-            for (int i = 0; i < children.Count; i++)
+            for (var i = 0; i < children.Count; i++)
             {
                 if (i > 0)
                 {
@@ -1220,6 +1245,23 @@
 
         public override void Visit(SqlOrderByClause codeObject)
         {
+            _stringBuilder.Append("ORDER BY");
+
+            using (_stringBuilder.CreateIndentationContext())
+            {
+                for (var i = 0; i < codeObject.Items.Count; i++)
+                {
+                    if (i > 0)
+                    {
+                        _stringBuilder.Append(",");
+                    }
+
+                    _stringBuilder.AppendIndentedLine();
+
+                    codeObject.Items[i]
+                        .Accept(this);
+                }
+            }
         }
 
         public override void Visit(SqlStorageSpecification codeObject)
@@ -1248,6 +1290,23 @@
 
         public override void Visit(SqlOutputClause codeObject)
         {
+            _stringBuilder.Append("OUTPUT");
+
+            using (_stringBuilder.CreateIndentationContext())
+            {
+                for (var i = 0; i < codeObject.OutputExpressions.Count; i++)
+                {
+                    if (i > 0)
+                    {
+                        _stringBuilder.Append(",");
+                    }
+
+                    _stringBuilder
+                        .AppendIndentedLine();
+
+                    codeObject.OutputExpressions[i].Accept(this);
+                }
+            }
         }
 
         public override void Visit(SqlPrimaryKeyConstraint codeObject)
@@ -1304,6 +1363,7 @@
 
         public override void Visit(SqlIdentifier codeObject)
         {
+            _stringBuilder.Append(codeObject.Value);
         }
 
         public override void Visit(SqlHavingClause codeObject)
@@ -1405,6 +1465,50 @@
 
         public override void Visit(SqlAggregateFunctionCallExpression codeObject)
         {
+        }
+
+        private void ParseTokens(IEnumerable<Token> codeObjectTokens)
+        {
+            var nonEmptyTokens = codeObjectTokens
+                .Where(token => Tokens.LEX_WHITE != (Tokens) token.Id)
+                .ToList();
+
+            foreach (var token in nonEmptyTokens)
+            {
+                switch ((Tokens) token.Id)
+                {
+                    case (Tokens)40: // left parenthesis
+                        _stringBuilder.Append("(");
+                        break;
+
+                    case (Tokens)41: // right parenthesis
+                        _stringBuilder.Append(")");
+                        break;
+
+                    case (Tokens)44: // comma
+                        _stringBuilder.Append(", ");
+                        break;
+
+                    case (Tokens)46: // period
+                        _stringBuilder.Append(".");
+                        break;
+
+                    case Tokens.TOKEN_COALESCE:
+                        _stringBuilder.Append("COALESCE");
+                        break;
+
+                    case Tokens.TOKEN_VARIABLE:
+                        _stringBuilder.Append(token.Text);
+                        break;
+
+                    case Tokens.TOKEN_ID:
+                        _stringBuilder.Append(token.Text);
+                        break;
+
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
         }
     }
 }
