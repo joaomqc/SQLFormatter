@@ -136,13 +136,9 @@
 
             using (_stringBuilder.CreateIndentationContext())
             {
-                foreach (var child in codeObject.Children)
-                {
-                    _stringBuilder.AppendIndentedLine();
+                _stringBuilder.AppendIndentedLine();
 
-                    child.Accept(this);
-                }
-
+                codeObject.Expression.Accept(this);
             }
         }
 
@@ -579,6 +575,28 @@
         {
         }
 
+        public override void Visit(SqlStatement codeObject)
+        {
+            if (!codeObject.Children.Any())
+            {
+                ParseTokens(codeObject.Tokens);
+            }
+            else
+            {
+                var children = codeObject.Children.ToList();
+
+                for (var i = 0; i < children.Count; i++)
+                {
+                    if (i > 0)
+                    {
+                        _stringBuilder.AppendIndentedLine();
+                    }
+
+                    children[i].Accept(this);
+                }
+            }
+        }
+
         public override void Visit(SqlSelectStatement codeObject)
         {
             codeObject.SelectSpecification.QueryExpression.Accept(this);
@@ -643,6 +661,17 @@
 
         public override void Visit(SqlCreateProcedureStatement codeObject)
         {
+            var children = codeObject.Children.ToList();
+
+            for (var i = 0; i < children.Count; i++)
+            {
+                if (i > 0)
+                {
+                    _stringBuilder.AppendIndentedLine();
+                }
+
+                children[i].Accept(this);
+            }
         }
 
         public override void Visit(SqlCreateLoginWithPasswordStatement codeObject)
@@ -675,6 +704,23 @@
 
         public override void Visit(SqlCompoundStatement codeObject)
         {
+            _stringBuilder.Append("BEGIN");
+
+            using (_stringBuilder.CreateIndentationContext())
+            {
+                foreach (var statement in codeObject.Statements)
+                {
+                    _stringBuilder
+                        .AppendIndentedLine()
+                        .AppendIndentedLine();
+
+                    statement.Accept(this);
+                }
+            }
+
+            _stringBuilder
+                .AppendIndentedLine()
+                .Append("END");
         }
 
         public override void Visit(SqlCommentStatement codeObject)
@@ -958,6 +1004,12 @@
 
         public override void Visit(SqlConditionClause codeObject)
         {
+            _stringBuilder.Append("ON ");
+
+            using (_stringBuilder.CreateIndentationContext())
+            {
+                codeObject.Expression.Accept(this);
+            }
         }
 
         public override void Visit(SqlBuiltinScalarFunctionCallExpression codeObject)
@@ -1011,6 +1063,13 @@
 
         public override void Visit(SqlBinaryBooleanExpression codeObject)
         {
+            codeObject.Left.Accept(this);
+
+            _stringBuilder
+                .AppendIndentedLine()
+                .Append($" {codeObject.Operator.ToString().ToUpper()} ");
+            
+            codeObject.Right.Accept(this);
         }
 
         public override void Visit(SqlBatch codeObject)
@@ -1237,10 +1296,42 @@
 
         public override void Visit(SqlQualifiedJoinTableExpression codeObject)
         {
+            codeObject.Left.Accept(this);
+
+            _stringBuilder
+                .AppendIndentedLine()
+                .Append($"{codeObject.JoinOperator.GetStringRepresentation()} ");
+
+            codeObject.Right.Accept(this);
+
+            _stringBuilder.Append(" ");
+
+            codeObject.OnClause.Accept(this);
         }
 
         public override void Visit(SqlProcedureDefinition codeObject)
         {
+            var createDefinition = codeObject as SqlProcedureDefinitionForCreate;
+            var isOrAlterStatement = createDefinition?.IsOrAlterStatement ?? false;
+            var orAlter = isOrAlterStatement ? "OR ALTER" : "";
+
+            _stringBuilder.Append($"CREATE {orAlter}PROCEDURE");
+
+            codeObject.Name.Accept(this);
+
+            using (_stringBuilder.CreateIndentationContext())
+            {
+                foreach (var parameter in codeObject.Parameters)
+                {
+                    _stringBuilder.AppendIndentedLine();
+
+                    parameter.Accept(this);
+                }
+            }
+
+            _stringBuilder
+                .AppendIndentedLine()
+                .Append("AS");
         }
 
         public override void Visit(SqlOrderByClause codeObject)
@@ -1278,6 +1369,9 @@
 
         public override void Visit(SqlParameterDeclaration codeObject)
         {
+            _stringBuilder.Append($"{codeObject.Name} ");
+
+            codeObject.Type.Accept(this);
         }
 
         public override void Visit(SqlPadIndexOption codeObject)
@@ -1449,6 +1543,11 @@
 
         public override void Visit(SqlIsNullBooleanExpression codeObject)
         {
+            codeObject.Expression.Accept(this);
+            
+            var notNull = codeObject.HasNot ? "NOT " : string.Empty;
+
+            _stringBuilder.Append($" IS {notNull}NULL");
         }
 
         public override void Visit(SqlIntoClause codeObject)
@@ -1482,33 +1581,47 @@
                         break;
 
                     case (Tokens)41: // right parenthesis
-                        _stringBuilder.Append(")");
+                        _stringBuilder
+                            .RemoveLastSpace()
+                            .Append(")");
                         break;
 
                     case (Tokens)44: // comma
-                        _stringBuilder.Append(", ");
+                        _stringBuilder
+                            .RemoveLastSpace()
+                            .Append(", ");
                         break;
 
                     case (Tokens)46: // period
-                        _stringBuilder.Append(".");
+                        _stringBuilder
+                            .RemoveLastSpace()
+                            .Append(".");
                         break;
 
-                    case Tokens.TOKEN_COALESCE:
-                        _stringBuilder.Append("COALESCE");
+                    case (Tokens)59: // semicolon
+                        _stringBuilder
+                            .RemoveLastSpace()
+                            .Append(";");
+                        break;
+
+                    case (Tokens)61: // equals
+                        _stringBuilder.Append("= ");
                         break;
 
                     case Tokens.TOKEN_VARIABLE:
-                        _stringBuilder.Append(token.Text);
-                        break;
-
                     case Tokens.TOKEN_ID:
-                        _stringBuilder.Append(token.Text);
+                    case Tokens.TOKEN_INTEGER:
+                    case Tokens.TOKEN_STRING:
+                        _stringBuilder.Append($"{token.Text} ");
                         break;
 
                     default:
-                        throw new ArgumentOutOfRangeException();
+                        _stringBuilder.Append($"{token.Text.ToUpper()} ");
+                        break;
                 }
             }
+
+            _stringBuilder.RemoveLastSpace();
         }
     }
 }

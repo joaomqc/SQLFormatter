@@ -5,6 +5,36 @@
 
     public static class OperatorExtensions
     {
+        public static string GetStringRepresentation(this SqlJoinOperatorType operatorType)
+        {
+            switch (operatorType)
+            {
+                case SqlJoinOperatorType.CrossApply:
+                    return "CROSS APPLY";
+
+                case SqlJoinOperatorType.CrossJoin:
+                    return "CROSS JOIN";
+
+                case SqlJoinOperatorType.FullOuterJoin:
+                    return "FULL OUTER JOIN";
+
+                case SqlJoinOperatorType.InnerJoin:
+                    return "INNER JOIN";
+
+                case SqlJoinOperatorType.LeftOuterJoin:
+                    return "LEFT OUTER JOIN";
+
+                case SqlJoinOperatorType.OuterApply:
+                    return "OUTER APPLY";
+
+                case SqlJoinOperatorType.RightOuterJoin:
+                    return "RIGHT OUTER JOIN";
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(operatorType));
+            }
+        }
+
         public static string GetStringRepresentation(this SqlBinaryScalarOperatorType operatorType)
         {
             switch (operatorType)

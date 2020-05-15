@@ -8,6 +8,7 @@
         public static StringBuilder AppendIndentedLine(this StringBuilder stringBuilder)
         {
             return stringBuilder
+                .RemoveLastSpace()
                 .AppendLine()
                 .Append(new string('\t', IndentationContext.IndentationLevel));
         }
@@ -15,6 +16,16 @@
         public static IndentationContext CreateIndentationContext(this StringBuilder indentationContext)
         {
             return new IndentationContext();
+        }
+
+        public static StringBuilder RemoveLastSpace(this StringBuilder stringBuilder)
+        {
+            if (stringBuilder[^1] == ' ')
+            {
+                stringBuilder.Length--;
+            }
+
+            return stringBuilder;
         }
     }
 
