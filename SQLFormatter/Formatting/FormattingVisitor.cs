@@ -337,7 +337,12 @@
 
         public override void Visit(SqlTableRefExpression codeObject)
         {
-            _stringBuilder.Append(codeObject.Sql);
+            using (_stringBuilder.CreateIndentationContext())
+            {
+                _stringBuilder
+                    .AppendIndentedLine()
+                    .Append(codeObject.Sql);
+            }
         }
 
         public override void Visit(SqlTableHint codeObject)
@@ -926,23 +931,7 @@
                     _stringBuilder.Append(",");
                 }
 
-                var child = children[i];
-
-                if (child is SqlDerivedTableExpression)
-                {
-                    _stringBuilder.AppendLine();
-
-                    child.Accept(this);
-                }
-                else
-                {
-                    using (_stringBuilder.CreateIndentationContext())
-                    {
-                        _stringBuilder.AppendIndentedLine();
-
-                        child.Accept(this);
-                    }
-                }
+                children[i].Accept(this);
             }
         }
 
@@ -1225,7 +1214,7 @@
 
         public override void Visit(SqlScalarExpression codeObject)
         {
-            // SqlParser does not work with coalesce
+            // SqlParser does not work with some functions
             // Must parse token list
             ParseTokens(codeObject.Tokens);
         }
