@@ -1,6 +1,5 @@
 ﻿namespace SQLFormatter.Formatting
 {
-    using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Text;
@@ -584,7 +583,7 @@
         {
             if (!codeObject.Children.Any())
             {
-                ParseTokens(codeObject.Tokens);
+                ParseTokens(codeObject);
             }
             else
             {
@@ -724,6 +723,7 @@
             }
 
             _stringBuilder
+                .AppendIndentedLine()
                 .AppendIndentedLine()
                 .Append("END");
         }
@@ -1056,7 +1056,7 @@
 
             _stringBuilder
                 .AppendIndentedLine()
-                .Append($" {codeObject.Operator.ToString().ToUpper()} ");
+                .Append($"{codeObject.Operator.ToString().ToUpper()} ");
             
             codeObject.Right.Accept(this);
         }
@@ -1216,7 +1216,7 @@
         {
             // SqlParser does not work with some functions
             // Must parse token list
-            ParseTokens(codeObject.Tokens);
+            ParseTokens(codeObject);
         }
 
         public override void Visit(SqlQueryExpression codeObject)
@@ -1302,19 +1302,24 @@
         {
             var createDefinition = codeObject as SqlProcedureDefinitionForCreate;
             var isOrAlterStatement = createDefinition?.IsOrAlterStatement ?? false;
-            var orAlter = isOrAlterStatement ? "OR ALTER" : "";
+            var orAlter = isOrAlterStatement ? " OR ALTER" : "";
 
-            _stringBuilder.Append($"CREATE {orAlter}PROCEDURE");
+            _stringBuilder.Append($"CREATE{orAlter} PROCEDURE ");
 
             codeObject.Name.Accept(this);
 
             using (_stringBuilder.CreateIndentationContext())
             {
-                foreach (var parameter in codeObject.Parameters)
+                for(var i = 0; i < codeObject.Parameters.Count; i++)
                 {
+                    if (i > 0)
+                    {
+                        _stringBuilder.Append(",");
+                    }
+
                     _stringBuilder.AppendIndentedLine();
 
-                    parameter.Accept(this);
+                    codeObject.Parameters[i].Accept(this);
                 }
             }
 
@@ -1555,46 +1560,71 @@
         {
         }
 
-        private void ParseTokens(IEnumerable<Token> codeObjectTokens)
+        private void ParseTokens(SqlCodeObject codeObject)
         {
-            var nonEmptyTokens = codeObjectTokens
+            var nonEmptyTokens = codeObject.Tokens
                 .Where(token => Tokens.LEX_WHITE != (Tokens) token.Id)
                 .ToList();
+            
+            ParseTokens(nonEmptyTokens);
+        }
 
-            foreach (var token in nonEmptyTokens)
+        private void ParseTokens(IList<Token> tokens)
+        {
+            var insideThen = false;
+            var firstWhen = false;
+
+            foreach (var token in tokens)
             {
                 switch ((Tokens) token.Id)
                 {
-                    case (Tokens)40: // left parenthesis
-                        _stringBuilder.Append("(");
+                    case (Tokens) 40: // left parenthesis
+                        _stringBuilder
+                            .Append("(");
+
+                        IndentationContext.IncrementLevel();
+
+                        _stringBuilder
+                            .AppendIndentedLine();
+
                         break;
 
-                    case (Tokens)41: // right parenthesis
+                    case (Tokens) 41: // right parenthesis
                         _stringBuilder
                             .RemoveLastSpace()
-                            .Append(")");
+                            .AppendIndentedLine()
+                            .RemoveLastTab()
+                            .Append(") ");
+
+                        IndentationContext.DecrementLevel();
+
                         break;
 
-                    case (Tokens)44: // comma
+                    case (Tokens) 44: // comma
                         _stringBuilder
                             .RemoveLastSpace()
-                            .Append(", ");
+                            .Append(",")
+                            .AppendIndentedLine();
+
                         break;
 
-                    case (Tokens)46: // period
+                    case (Tokens) 46: // period
                         _stringBuilder
                             .RemoveLastSpace()
                             .Append(".");
+
                         break;
 
-                    case (Tokens)59: // semicolon
+                    case (Tokens) 59: // semicolon
                         _stringBuilder
                             .RemoveLastSpace()
                             .Append(";");
+
                         break;
 
-                    case (Tokens)61: // equals
+                    case (Tokens) 61: // equals
                         _stringBuilder.Append("= ");
+
                         break;
 
                     case Tokens.TOKEN_VARIABLE:
@@ -1602,10 +1632,71 @@
                     case Tokens.TOKEN_INTEGER:
                     case Tokens.TOKEN_STRING:
                         _stringBuilder.Append($"{token.Text} ");
+
+                        break;
+
+                    case Tokens.TOKEN_WHEN:
+                        if (firstWhen)
+                        {
+                            firstWhen = false;
+                            IndentationContext.IncrementLevel();
+                        }
+
+                        if (insideThen)
+                        {
+                            insideThen = false;
+                            IndentationContext.DecrementLevel();
+                        }
+                        _stringBuilder
+                            .AppendIndentedLine()
+                            .Append($"{token.Text.ToUpper()} ");
+
+                        break;
+
+                    case Tokens.TOKEN_AS:
+                        _stringBuilder.Append($"{token.Text.ToUpper()} ");
+
+                        break;
+
+                    case Tokens.TOKEN_THEN:
+                        insideThen = true;
+                        IndentationContext.IncrementLevel();
+
+                        _stringBuilder
+                            .AppendIndentedLine()
+                            .Append($"{token.Text.ToUpper()} ");
+
+                        break;
+
+                    case Tokens.TOKEN_END:
+                        if (insideThen)
+                        {
+                            insideThen = false;
+                            IndentationContext.DecrementLevel();
+                        }
+                        IndentationContext.DecrementLevel();
+                        _stringBuilder
+                            .AppendIndentedLine()
+                            .Append($"{token.Text.ToUpper()}");
+
+                        break;
+
+                    case Tokens.TOKEN_CASE:
+                        firstWhen = true;
+                        _stringBuilder.Append($"{token.Text.ToUpper()} ");
+
+                        break;
+
+                    case Tokens.TOKEN_AND:
+                        _stringBuilder
+                            .AppendIndentedLine()
+                            .Append($"{token.Text.ToUpper()} ");
+
                         break;
 
                     default:
                         _stringBuilder.Append($"{token.Text.ToUpper()} ");
+
                         break;
                 }
             }

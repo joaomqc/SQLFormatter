@@ -27,20 +27,40 @@
 
             return stringBuilder;
         }
+
+        public static StringBuilder RemoveLastTab(this StringBuilder stringBuilder)
+        {
+            if (stringBuilder[^1] == '\t')
+            {
+                stringBuilder.Length--;
+            }
+
+            return stringBuilder;
+        }
     }
 
     public class IndentationContext : IDisposable
     {
         public IndentationContext()
         {
-            IndentationLevel++;
+            IncrementLevel();
         }
 
         public static int IndentationLevel { get; private set; }
 
-        public void Dispose()
+        public static void IncrementLevel()
+        {
+            IndentationLevel++;
+        }
+
+        public static void DecrementLevel()
         {
             IndentationLevel--;
+        }
+
+        public void Dispose()
+        {
+            DecrementLevel();
         }
     }
 }
